@@ -109,45 +109,30 @@ COverlayTextureGL::COverlayTextureGL(const CDVDOverlayImage& o, CRect& rSource)
 
   glBindTexture(GL_TEXTURE_2D, 0);
 
-  if (o.source_width > 0 && o.source_height > 0)
-  {
-    m_pos = POSITION_RELATIVE;
-    m_x = (0.5f * o.width + o.x) / o.source_width;
-    m_y = (0.5f * o.height + o.y) / o.source_height;
+  // Determine source canvas dimensions
+  // Use overlay source dimensions if available, otherwise fallback to video source rect
+  float source_w = (o.source_width > 0) ? static_cast<float>(o.source_width) : rSource.Width();
+  float source_h = (o.source_height > 0) ? static_cast<float>(o.source_height) : rSource.Height();
 
-    const float subRatio{static_cast<float>(o.source_width) / o.source_height};
-    const float vidRatio{rSource.Width() / rSource.Height()};
+  // Avoid division by zero
+  if (source_w <= 0.0f) source_w = 1920.0f;
+  if (source_h <= 0.0f) source_h = 1080.0f;
 
-    // We always consider aligning 4/3 subtitles to the video,
-    // for example SD DVB subtitles (4/3) must be stretched on fullhd video
+  m_pos = POSITION_RELATIVE;
+  
+  // Calculate relative position (0.0 - 1.0)
+  // Center of the subtitle bitmap relative to the source canvas
+  m_x = (0.5f * o.width + o.x) / source_w;
+  m_y = (0.5f * o.height + o.y) / source_h;
 
-    if (std::fabs(subRatio - vidRatio) < 0.001f || IsSquareResolution(subRatio))
-    {
-      m_align = ALIGN_VIDEO;
-      m_width = static_cast<float>(o.width) / o.source_width;
-      m_height = static_cast<float>(o.height) / o.source_height;
-    }
-    else
-    {
-      // We should have a re-encoded/cropped (removed black bars) video source.
-      // Then we cannot align to video otherwise the subtitles will be deformed
-      // better align to screen by keeping the aspect-ratio.
-      m_align = ALIGN_SCREEN_AR;
-      m_width = static_cast<float>(o.width);
-      m_height = static_cast<float>(o.height);
-      m_source_width = static_cast<float>(o.source_width);
-      m_source_height = static_cast<float>(o.source_height);
-    }
-  }
-  else
-  {
-    m_align = ALIGN_VIDEO;
-    m_pos = POSITION_ABSOLUTE;
-    m_x = static_cast<float>(o.x);
-    m_y = static_cast<float>(o.y);
-    m_width = static_cast<float>(o.width);
-    m_height = static_cast<float>(o.height);
-  }
+  // Force align to screen AR
+  // This ensures the subtitle stays within the screen frame regardless of video zoom/crop
+  m_align = ALIGN_SCREEN_AR;
+  
+  m_width = static_cast<float>(o.width);
+  m_height = static_cast<float>(o.height);
+  m_source_width = source_w;
+  m_source_height = source_h;
 }
 
 std::shared_ptr<COverlay> COverlay::Create(const CDVDOverlaySpu& o)
